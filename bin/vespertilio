@@ -45,8 +45,12 @@ const run = async () => {
     updateRepo('git@github.com:lock-free/httpna_service.git', repoRoot, 'httpna_service')
   ]);
 
-  await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'na_service');
-  await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'httpna_service');
+  await Promise.all([
+    await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'na_service'),
+    await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'httpna_service')
+  ].concat(cnf.source.workers.map(async (worker) => {
+    await copyStageToDpmSrcRepo(repoRoot, srcRepo, worker);
+  })));
 
   // copy config for httpna
   await copyFile(path.join(cnfDir, cnf.httpna.cnfFile), path.join(dpmSrc, './stage/data/src/httpna_service/stage/data/httpna_conf.json'));
@@ -92,7 +96,5 @@ const copyFile = async (src, tar) => {
   await mkdirp(path.dirname(tar));
   await spawnp('cp', [src, tar]);
 };
-
-
 
 run();
