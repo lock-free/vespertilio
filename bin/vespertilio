@@ -33,7 +33,7 @@ const run = async () => {
 
   // copy cnf
   await copyDir(path.join(cnfDir, cnf.dpm.cnfDir), path.join(dpmSrc, './stage/data/cnf'));
-  await spawnp('cp', [path.join(cnfDir, './conf/config.json'), path.join(dpmSrc, './stage/data/config.json')]);
+  await copyFile(path.join(cnfDir, cnf.dpm.cnfFile), path.join(dpmSrc, './stage/data/config.json'));
 
   // update
   const repoRoot = path.resolve(cnfDir, cnf.source.repoRoot);
@@ -47,6 +47,9 @@ const run = async () => {
 
   await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'na_service');
   await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'httpna_service');
+
+  // copy config for httpna
+  await copyFile(path.join(cnfDir, cnf.httpna.cnfFile), path.join(dpmSrc, './stage/data/src/httpna_service/stage/data/httpna_conf.json'));
 
   // copy
   const dpmBinPath = path.resolve(dpmSrc, './stage/bin/');
@@ -84,5 +87,12 @@ const copyDir = async (srcDir, tarDir) => {
   await del([tarDir]);
   await spawnp('cp', ['-r', srcDir, tarDir]);
 };
+
+const copyFile = async (src, tar) => {
+  await mkdirp(path.dirname(tar));
+  await spawnp('cp', [src, tar]);
+};
+
+
 
 run();
