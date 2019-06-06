@@ -1,0 +1,32 @@
+{
+  "name": "vespertilio",
+  "version": "0.0.1",
+  "description": "Tool For Vespertilio",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha test/**/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lock-free/vespertilio.git"
+  },
+  "keywords": [
+    "distributed",
+    "vespertilio"
+  ],
+  "author": "ddchen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lock-free/vespertilio/issues"
+  },
+  "homepage": "https://github.com/lock-free/vespertilio#readme",
+  "devDependencies": {
+    "mocha": "^6.1.4"
+  },
+  "dependencies": {
+    "del": "^4.1.1",
+    "flexdeploy": "0.0.22",
+    "lodash": "^4.17.11",
+    "yargs": "^13.2.4"
+  }
+}

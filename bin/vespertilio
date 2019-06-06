@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+
+const yargs = require('yargs');
+const del = require('del');
+const path = require('path');
+const {deployDpm} = require('../src');
+const {
+  readConfig, spawnp, existsDir, mkdirp
+} = require('flexdeploy/src/util');
+
+yargs.usage(`Usage: vespertilio
+    --upd
+    --config    config file path
+    `).help('h').alias('h', 'help');
+
+const {argv} = yargs;
+
+const run = async () => {
+  const cnfFilePath = path.resolve(process.cwd(), argv.config || 'vespertilio.json');
+  const cnf = await readConfig(cnfFilePath);
+  const cnfDir = path.dirname(cnfFilePath);
+
+  const dpmSrc = path.resolve(cnfDir, cnf.dpm.src);
+
+  if(!await existsDir(dpmSrc) || argv.upd) {
+    await del([dpmSrc]);
+    await spawnp('git', ['clone', 'git@github.com:lock-free/dpm-cluster-demo.git', cnf.dpm.src], {
+      cwd: cnfDir
+    });
+
+    await del([path.join(dpmSrc, '.git')]);
+  }
+
+  // copy cnf
+  await copyDir(path.join(cnfDir, cnf.dpm.cnfDir), path.join(dpmSrc, './stage/data/cnf'));
+  await spawnp('cp', [path.join(cnfDir, './conf/config.json'), path.join(dpmSrc, './stage/data/config.json')]);
+
+  // update
+  const repoRoot = path.resolve(cnfDir, cnf.source.repoRoot);
+  const srcRepo = path.resolve(dpmSrc, './stage/data/src');
+
+  await Promise.all([
+    updateRepo('git@github.com:lock-free/dpm_service.git', repoRoot, 'dpm_service'),
+    updateRepo('git@github.com:lock-free/na_service.git', repoRoot, 'na_service'),
+    updateRepo('git@github.com:lock-free/httpna_service.git', repoRoot, 'httpna_service')
+  ]);
+
+  await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'na_service');
+  await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'httpna_service');
+
+  // copy
+  const dpmBinPath = path.resolve(dpmSrc, './stage/bin/');
+  await mkdirp(dpmBinPath);
+  await spawnp('cp', [path.resolve(repoRoot, 'dpm_service/stage/bin/dpm_service'), dpmBinPath]);
+
+  // deploy dpm
+  const dpmDeployCnfPath = path.resolve(cnfDir, cnf.dpm['deploy-cnf']);
+  await deployDpm(dpmDeployCnfPath, 'staging');
+};
+
+const updateRepo = async(gitAddr, repoRoot, targetDir) => {
+  if(! await existsDir(path.resolve(repoRoot, targetDir))) {
+    await spawnp('git', ['clone', gitAddr, targetDir], {
+      cwd: repoRoot
+    });
+  } else {
+    await spawnp('git', ['pull'], {
+      cwd: repoRoot
+    });
+  }
+};
+
+// copy stage dir and empty Makefile
+const copyStageToDpmSrcRepo = async (repoRoot, srcRepo, targetDir) => {
+  const srcStage = path.resolve(srcRepo, targetDir, 'stage');
+  const repoStage = path.resolve(repoRoot, targetDir, 'stage');
+
+  await copyDir(repoStage, srcStage);
+  await spawnp('cp', [path.join(__dirname, '../res/makefile'), path.resolve(srcRepo, targetDir, 'makefile')]);
+};
+
+const copyDir = async (srcDir, tarDir) => {
+  await mkdirp(tarDir);
+  await del([tarDir]);
+  await spawnp('cp', ['-r', srcDir, tarDir]);
+};
+
+run();
