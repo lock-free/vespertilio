@@ -78,13 +78,12 @@ const run = async () => {
 };
 
 const updateRepo = async(gitAddr, repoRoot, targetDir) => {
-  if(! await existsDir(path.resolve(repoRoot, targetDir))) {
-    await spawnp('git', ['clone', gitAddr, targetDir], {
-      cwd: repoRoot
-    });
+  const repoDir = path.resolve(repoRoot, targetDir);
+  if(! await existsDir(repoDir)) {
+    await spawnp('git', ['clone', gitAddr, repoDir]);
   } else {
     await spawnp('git', ['pull'], {
-      cwd: repoRoot
+      cwd: repoDir
     });
   }
 };
