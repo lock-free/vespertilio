@@ -5,7 +5,7 @@ const del = require('del');
 const path = require('path');
 const {deployDpm} = require('../src');
 const {
-  readConfig, spawnp, existsDir, mkdirp, exec, readJson, writeTxt
+  readConfig, spawnp, existsDir, mkdirp, exec, readJson, writeTxt, existsFile
 } = require('flexdeploy/src/util');
 
 yargs.usage(`Usage: vespertilio
@@ -32,18 +32,56 @@ const syncBaseProjects = async(cnf) => {
 };
 
 const copyDpmData = async (cnf) => {
-  // copy dpm cnf
-  await copyDir(cnf.dpm.cnfDir, path.join(cnf.dpm.src, './stage/data/cnf'));
+  // copy common dir
+  if(await existsDir(path.join(cnf.dpm.cnfDir, 'common'))) {
+    await copyDir(path.join(cnf.dpm.cnfDir, 'common'), path.join(cnf.dpm.src, './stage/data/cnf/common'));
+  }
 
-  // modify dpm config json on the fly
-  await writeTxt(path.join(cnf.dpm.src, './stage/data/config.json'),
+  // copy private dir
+  await copyDir(path.join(cnf.dpm.cnfDir, 'private'), path.join(cnf.dpm.src, './stage/data/cnf/private'));
+
+  // copy dpm cnf na.json on the fly
+  await copyJsonOnTheFly(path.join(cnf.dpm.cnfDir, 'na.json'),
+    path.join(cnf.dpm.src, './stage/data/cnf/na.json'),
+    {
+      'NADeployCnfPath': '/data/cnf/common/na/deploy-cnf.json',
+      'NAMachineCnfPath': '/data/cnf/private/machine/na.json',
+      NAs: cnf.remote.NAs
+    }
+  );
+
+  // copy dpm worker.json on the fly
+  await copyJsonOnTheFly(path.join(cnf.dpm.cnfDir, 'worker.json'),
+    path.join(cnf.dpm.src, './stage/data/cnf/worker.json'),
+    {
+      'WorkerDeployCnfPath': '/data/cnf/common/worker/deploy-cnf.json',
+      'WorkerMachineCnfPath': '/data/cnf/private/machine/worker.json',
+      Workers: cnf.remote.worker.Workers,
+      Machines: cnf.remote.worker.Machines
+    }
+  );
+
+  // copy dpm config.json on the fly
+  await copyJsonOnTheFly(cnf.dpm.cnfFile,
+    path.join(cnf.dpm.src, './stage/data/config.json'),
+    // default dpm config.json
+    {
+      Only: cnf.only || '',
+      RemoteRoot: cnf.remote.root,
+
+      'OnlineType': 'staging',
+      'NAConfPath': '/data/cnf/na.json',
+      'WorkerConfPath': '/data/cnf/worker.json',
+      'TargetDir': '/data/target',
+      'SrcDir': '/data/src'
+    }
+  );
+};
+
+const copyJsonOnTheFly = async (src, tar, def={}) => {
+  await writeTxt(tar,
     JSON.stringify(
-      Object.assign(
-        await readJson(cnf.dpm.cnfFile),
-        {
-          Only: cnf.only || ''
-        }
-      ),
+      Object.assign(def, (await existsFile(src))? await readJson(src): {}),
       null,
       4
     )
@@ -113,6 +151,22 @@ const deployDpmHelp = async (cnf) => {
   const dpmBinPath = path.resolve(cnf.dpm.src, './stage/bin/');
   await mkdirp(dpmBinPath);
   await spawnp('cp', [path.resolve(cnf.source.repoRoot, 'dpm_service/stage/bin/dpm_service'), dpmBinPath]);
+
+  // copy deploy-cnf.json to dpm dir
+  await copyJsonOnTheFly(cnf.dpm['deploy-cnf'],
+    cnf.dpm['deploy-cnf'],
+    Object.assign({
+      'project': cnf.name || 'vespertilio-cluster',
+
+      'srcDir': './src',
+      'stageDir': './stage',
+
+      'hooks': {
+        'pre': [],
+        'afterDeployRemoteCmds': []
+      }
+    }, cnf.dpm.deploy)
+  );
 
   // deploy dpm
   await deployDpm(cnf.dpm['deploy-cnf'], 'staging');
