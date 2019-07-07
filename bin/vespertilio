@@ -38,7 +38,9 @@ const copyDpmData = async (cnf) => {
   }
 
   // copy private dir
-  await copyDir(path.join(cnf.dpm.cnfDir, 'private'), path.join(cnf.dpm.src, './stage/data/cnf/private'));
+  if(await existsDir(path.join(cnf.dpm.cnfDir, 'private'))) {
+    await copyDir(path.join(cnf.dpm.cnfDir, 'private'), path.join(cnf.dpm.src, './stage/data/cnf/private'));
+  }
 
   // copy dpm cnf na.json on the fly
   await copyJsonOnTheFly(path.join(cnf.dpm.cnfDir, 'na.json'),
@@ -60,6 +62,22 @@ const copyDpmData = async (cnf) => {
       Machines: cnf.remote.worker.Machines
     }
   );
+
+  // copy machine/na.json on the fly
+  await copyJsonOnTheFly(path.join(cnf.dpm.cnfDir, 'private/machine/na.json'),
+    path.join(cnf.dpm.src, './stage/data/cnf/private/machine/na.json'),
+    cnf.machine.na
+  );
+
+  // copy machine/worker.json on the fly
+  await copyJsonOnTheFly(path.join(cnf.dpm.cnfDir, 'private/machine/worker.json'),
+    path.join(cnf.dpm.src, './stage/data/cnf/private/machine/worker.json'),
+    cnf.machine.na
+  );
+
+  // copy id_rsa
+  await copyDir(path.join(cnf.cwd, 'conf/ssh'),
+    path.join(cnf.dpm.src, './stage/data/cnf/private/ssh'));
 
   // copy dpm config.json on the fly
   await copyJsonOnTheFly(cnf.dpm.cnfFile,
