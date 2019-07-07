@@ -128,6 +128,21 @@ const getVespertilioConf = async () => {
 
   cnf.cwd = cnfDir;
 
+  // merge with default configuration options
+  cnf.dpm = Object.assign({
+    'deploy-cnf': './dpm/deploy-cnf.json',
+    'src': './dpm/src',
+    'cnfDir': './conf/dpm/cnf',
+    'cnfFile': './conf/dpm/config.json',
+    'data': './conf/data'
+  }, cnf.dpm || {});
+  cnf.httpna = Object.assign({
+    'cnfDir': './conf/http_na'
+  }, cnf.httpna || {});
+  cnf.source = Object.assign({
+    'repoRoot': './code_repo',
+  }, cnf.source || {});
+
   // resolve paths
   cnf.source.repoRoot = path.resolve(cnfDir, cnf.source.repoRoot);
 
