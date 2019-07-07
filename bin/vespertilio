@@ -17,24 +17,29 @@ yargs.usage(`Usage: vespertilio
 
 const {argv} = yargs;
 
-const prepareBaseProjects = async(cnfDir, cnf, repoRoot, dpmSrc) => {
-  if(!await existsDir(dpmSrc) || argv.upd) {
-    await del([dpmSrc]);
-    await spawnp('git', ['clone', 'git@github.com:lock-free/dpm-cluster-demo.git', cnf.dpm.src], {
-      cwd: cnfDir
-    });
-
-    await del([path.join(dpmSrc, '.git')]);
+const syncBaseProjects = async(cnf) => {
+  if(!await existsDir(cnf.dpm.src) || argv.upd) {
+    await del([cnf.dpm.src]);
+    await spawnp('git', ['clone', 'git@github.com:lock-free/dpm-cluster-demo.git', cnf.dpm.src]);
+    await del([path.join(cnf.dpm.src, '.git')]);
   }
 
-  // copy cnf
-  await copyDir(path.join(cnfDir, cnf.dpm.cnfDir), path.join(dpmSrc, './stage/data/cnf'));
+  await Promise.all([
+    updateRepo('git@github.com:lock-free/dpm_service.git', cnf.source.repoRoot, 'dpm_service'),
+    updateRepo('git@github.com:lock-free/na_service.git', cnf.source.repoRoot, 'na_service'),
+    updateRepo('git@github.com:lock-free/httpna_service.git', cnf.source.repoRoot, 'httpna_service')
+  ]);
+};
 
-  // modify config json on the fly
-  await writeTxt(path.join(dpmSrc, './stage/data/config.json'),
+const copyDpmData = async (cnf) => {
+  // copy dpm cnf
+  await copyDir(cnf.dpm.cnfDir, path.join(cnf.dpm.src, './stage/data/cnf'));
+
+  // modify dpm config json on the fly
+  await writeTxt(path.join(cnf.dpm.src, './stage/data/config.json'),
     JSON.stringify(
       Object.assign(
-        await readJson(path.join(cnfDir, cnf.dpm.cnfFile)),
+        await readJson(cnf.dpm.cnfFile),
         {
           Only: cnf.only || ''
         }
@@ -43,74 +48,104 @@ const prepareBaseProjects = async(cnfDir, cnf, repoRoot, dpmSrc) => {
       4
     )
   );
-
-  await Promise.all([
-    updateRepo('git@github.com:lock-free/dpm_service.git', repoRoot, 'dpm_service'),
-    updateRepo('git@github.com:lock-free/na_service.git', repoRoot, 'na_service'),
-    updateRepo('git@github.com:lock-free/httpna_service.git', repoRoot, 'httpna_service')
-  ]);
 };
 
-// TODO filter worker
-const buildWorkers = async (cnfDir, cnf, srcRepo, repoRoot, dpmSrc) => {
-  await Promise.all([
-    await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'na_service'),
-    await copyStageToDpmSrcRepo(repoRoot, srcRepo, 'httpna_service')
-  ].concat(
-    // copy workers
-    (
-      cnf.only? cnf.source.workers.filter(({serviceType}) => serviceType === cnf.only): cnf.source.workers
-    ).map(async ({serviceType, buildCmd}) => {
-      // build first
-      if(buildCmd) {
-        await exec(buildCmd, {
-          cwd: cnfDir
-        });
-      }
+const copyData = async (cnf) => {
+  const srcRepo = path.resolve(cnf.dpm.src, './stage/data/src');
 
-      // copy source from repo root to dpm src repo
-      await copyStageToDpmSrcRepo(repoRoot, srcRepo, serviceType);
+  await Promise.all([
+    await copyDpmData(cnf),
+    // copy config for httpna
+    await copyDir(cnf.httpna.cnfDir, path.join(cnf.dpm.src, './stage/data/src/httpna_service/stage/data')),
+  ].concat(
+    // copy workers data
+    getWorkers(cnf).map(async ({serviceType}) => {
       // copy data dir
       if(cnf.dpm.data) {
-        const workerDataSrcDir = path.join(cnfDir, cnf.dpm.data, serviceType);
+        const workerDataSrcDir = path.join(cnf.cwd, cnf.dpm.data, serviceType);
         const workerDataTarDir = path.join(srcRepo, serviceType, './stage/data');
         if(await existsDir(workerDataSrcDir)) {
           await copyDir(workerDataSrcDir, workerDataTarDir);
         }
       }
+    })
+  ));
+};
+
+const getWorkers = (cnf) => {
+  return (
+    cnf.only? cnf.source.workers.filter(({serviceType}) => serviceType === cnf.only): cnf.source.workers
+  );
+};
+
+const copyCode = async (cnf) => {
+  const srcRepo = path.resolve(cnf.dpm.src, './stage/data/src');
+
+  // copy code to dpm src dir
+  await Promise.all([
+    await copyStageToDpmSrcRepo(cnf.source.repoRoot, srcRepo, 'na_service'),
+    await copyStageToDpmSrcRepo(cnf.source.repoRoot, srcRepo, 'httpna_service')
+  ].concat(
+    // copy workers
+    getWorkers(cnf).map(async ({serviceType, buildCmd}) => {
+      // build first
+      if(buildCmd) {
+        await exec(buildCmd, {
+          cwd: cnf.cwd
+        });
+      }
+      // copy source from repo root to dpm src repo
+      await copyStageToDpmSrcRepo(cnf.source.repoRoot, srcRepo, serviceType);
     }))
   );
-
-  // copy config for httpna
-  await copyDir(path.join(cnfDir, cnf.httpna.cnfDir), path.join(dpmSrc, './stage/data/src/httpna_service/stage/data'));
 };
 
-const deployDpmHelp = async (cnfDir, cnf, repoRoot, dpmSrc) => {
+// copy projects to dpm source dir
+const copyProjects = async (cnf) => {
+  await Promise.all([
+    await copyCode(cnf),
+    await copyData(cnf)
+  ]);
+};
+
+const deployDpmHelp = async (cnf) => {
   // copy binary
-  const dpmBinPath = path.resolve(dpmSrc, './stage/bin/');
+  const dpmBinPath = path.resolve(cnf.dpm.src, './stage/bin/');
   await mkdirp(dpmBinPath);
-  await spawnp('cp', [path.resolve(repoRoot, 'dpm_service/stage/bin/dpm_service'), dpmBinPath]);
+  await spawnp('cp', [path.resolve(cnf.source.repoRoot, 'dpm_service/stage/bin/dpm_service'), dpmBinPath]);
 
   // deploy dpm
-  const dpmDeployCnfPath = path.resolve(cnfDir, cnf.dpm['deploy-cnf']);
-  await deployDpm(dpmDeployCnfPath, 'staging');
+  await deployDpm(cnf.dpm['deploy-cnf'], 'staging');
 };
 
-const run = async () => {
+const getVespertilioConf = async () => {
   const cnfFilePath = path.resolve(process.cwd(), argv.config || 'vespertilio.json');
   const cnf = Object.assign(await readConfig(cnfFilePath), {
     only: argv.only
   });
+
   const cnfDir = path.dirname(cnfFilePath);
-  const repoRoot = path.resolve(cnfDir, cnf.source.repoRoot);
-  const dpmSrc = path.resolve(cnfDir, cnf.dpm.src);
-  const srcRepo = path.resolve(dpmSrc, './stage/data/src');
 
-  await prepareBaseProjects(cnfDir, cnf, repoRoot, dpmSrc);
+  cnf.cwd = cnfDir;
 
-  await buildWorkers(cnfDir, cnf, srcRepo, repoRoot, dpmSrc);
+  // resolve paths
+  cnf.source.repoRoot = path.resolve(cnfDir, cnf.source.repoRoot);
 
-  await deployDpmHelp(cnfDir, cnf, repoRoot, dpmSrc);
+  cnf.dpm.cnfDir = path.join(cnfDir, cnf.dpm.cnfDir);
+  cnf.dpm.cnfFile = path.join(cnfDir, cnf.dpm.cnfFile);
+  cnf.dpm.src = path.resolve(cnfDir, cnf.dpm.src);
+  cnf.dpm['deploy-cnf'] = path.resolve(cnfDir, cnf.dpm['deploy-cnf']);
+  cnf.httpna.cnfDir = path.join(cnfDir, cnf.httpna.cnfDir);
+
+  return cnf;
+};
+
+const run = async () => {
+  const cnf = await getVespertilioConf();
+
+  await syncBaseProjects(cnf);
+  await copyProjects(cnf);
+  await deployDpmHelp(cnf);
 };
 
 const updateRepo = async(gitAddr, repoRoot, targetDir) => {
