@@ -6,6 +6,9 @@
   "scripts": {
     "test": "mocha test/**/*.js"
   },
+  "bin": {
+    "vespertilio": "./bin/vespertilio"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lock-free/vespertilio.git"
