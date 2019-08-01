@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+
+const yargs = require('yargs');
+const path = require('path');
+const {run} = require('../src');
+const {
+  readConfig
+} = require('flexdeploy/src/util');
+const {resolveConfigPath} = require('../src/util');
+const _ = require('lodash');
+
+yargs.usage(`Usage: vespertilio-compose build | deploy | run 
+    --cluster   cluster name
+    --config    compose config file path
+    --upd
+    --only      only build one worker
+    `).help('h').alias('h', 'help');
+
+const {argv} = yargs;
+
+const getConfigObject = (composeObject, clusterName) => {
+  const configObject = composeObject.clusters[clusterName];
+  configObject.name = argv.cluster;
+  // merge common configuration
+  _.merge(configObject, composeObject.common || {});
+
+  // default value for dpm.deploy.def.remoteDir
+  return _.defaultsDeep(configObject, {
+    dpm: {
+      deploy: {
+        def: {
+          remoteDir: path.join(composeObject.root, clusterName, 'dpm')
+        }
+      }
+    },
+    remote: {
+      root: path.join(composeObject.root, clusterName, 'apps')
+    }
+  });
+};
+
+(async () => {
+  const cnfFilePath = resolveConfigPath(argv.config, 'vespertilio-compose.json');
+  const cnfDir = path.dirname(cnfFilePath);
+  const composeObject = await readConfig(cnfFilePath);
+
+  const configObject = getConfigObject(composeObject, argv.cluster);
+
+  await run(argv._[0], {
+    configObject,
+    cnfDir,
+    only: argv.only,
+    upd: argv.upd
+  });
+})();

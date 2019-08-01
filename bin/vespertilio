@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
 const yargs = require('yargs');
-const {deployDpm, getVespertilioConf, build} = require('../src');
+const path = require('path');
+const {run} = require('../src');
+const {
+  readConfig
+} = require('flexdeploy/src/util');
+const {resolveConfigPath} = require('../src/util');
 
 yargs.usage(`Usage: vespertilio build | deploy | run
     --upd
@@ -11,23 +16,15 @@ yargs.usage(`Usage: vespertilio build | deploy | run
 
 const {argv} = yargs;
 
-const run = async () => {
-  const cnf = await getVespertilioConf(argv);
-  const cmd = argv._[0];
-  switch(cmd) {
-    case 'build':
-      await build(cnf, argv);
-      break;
-    case 'deploy':
-      await deployDpm(cnf.dpm['deploy-cnf'], 'staging');
-      break;
-    case 'run':
-      await build(cnf, argv);
-      await deployDpm(cnf.dpm['deploy-cnf'], 'staging');
-      break;
-    default:
-      throw new Error(`unexpected command: ${cmd}`);
-  }
-};
+(async () => {
+  const cnfFilePath = resolveConfigPath(argv.config, 'vespertilio.json');
+  const cnfDir = path.dirname(cnfFilePath);
+  const configObject = await readConfig(cnfFilePath);
 
-run();
+  await run(argv._[0], {
+    configObject,
+    cnfDir,
+    only: argv.only,
+    upd: argv.upd
+  });
+})();

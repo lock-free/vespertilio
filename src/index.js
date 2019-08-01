@@ -3,7 +3,6 @@ const del = require('del');
 const {
   spawnp,
   exec,
-  readConfig,
   existsDir,
   mkdirp,
   parseTpl
@@ -29,29 +28,31 @@ const deployDpm = async (dpmDeployCnfPath, onlineType) => {
     });
 };
 
-const getVespertilioConf = async (argv) => {
-  const cnfFilePath = path.resolve(process.cwd(), argv.config || 'vespertilio.json');
-  const cnf = Object.assign(await readConfig(cnfFilePath), {
-    only: argv.only
+const getVespertilioConf = async ({
+  configObject,
+  only,
+  cnfDir
+}) => {
+  const cnf = Object.assign(configObject, {
+    only
   });
-
-  const cnfDir = path.dirname(cnfFilePath);
 
   cnf.cwd = cnfDir;
 
   const baseDir = `./clusters/${cnf.name}`;
+  const configDir = 'conf';
 
   // merge with default configuration options
   cnf.dpm = Object.assign({
     'deploy-cnf': `${baseDir}/dpm/deploy-cnf.json`,
     'src': `${baseDir}/dpm/src`,
-    'cnfDir': `${baseDir}/conf/dpm/cnf`,
-    'cnfFile': `${baseDir}/conf/dpm/config.json`,
-    'data': `${baseDir}/conf/data`
+    'cnfDir': `${configDir}/dpm/cnf`,
+    'cnfFile': `${configDir}/dpm/config.json`,
+    'data': `${configDir}/data`
   }, cnf.dpm || {});
 
   cnf.httpna = Object.assign({
-    'cnfDir': `${baseDir}/conf/http_na`
+    'cnfDir': `${configDir}/http_na`
   }, cnf.httpna || {});
 
   cnf.source = Object.assign({
@@ -72,9 +73,11 @@ const getVespertilioConf = async (argv) => {
   return cnf;
 };
 
-const syncBaseProjects = async (cnf, argv) => {
+const syncBaseProjects = async (cnf, {
+  upd
+}) => {
   // if need to force update demo project,
-  if (!await existsDir(cnf.dpm.src) || argv.upd) {
+  if (!await existsDir(cnf.dpm.src) || upd) {
     await del([cnf.dpm.src]);
     await spawnp('git', ['clone', 'git@github.com:lock-free/dpm-cluster-demo.git', cnf.dpm.src]);
     await del([path.join(cnf.dpm.src, '.git')]);
@@ -139,9 +142,13 @@ const buildDpm = async (cnf) => {
   );
 };
 
-const build = async (cnf, argv) => {
+const build = async (cnf, {
+  upd
+}) => {
   // sync base projects: dpm-cluster-demo, dpm_service, na_service, httpna_service
-  await syncBaseProjects(cnf, argv);
+  await syncBaseProjects(cnf, {
+    upd
+  });
 
   await copySourceCodeToDpmSrc(cnf);
 
@@ -251,8 +258,41 @@ const copyDpmData = async (cnf) => {
   );
 };
 
+const run = async (cmd, {
+  configObject,
+  cnfDir,
+  only,
+  upd
+}) => {
+  const cnf = await getVespertilioConf({
+    only,
+    configObject,
+    cnfDir
+  }, cnfDir);
+
+  switch (cmd) {
+    case 'build':
+      await build(cnf, {
+        upd
+      });
+      break;
+    case 'deploy':
+      await deployDpm(cnf.dpm['deploy-cnf'], 'staging');
+      break;
+    case 'run':
+      await build(cnf, {
+        upd
+      });
+      await deployDpm(cnf.dpm['deploy-cnf'], 'staging');
+      break;
+    default:
+      throw new Error(`unexpected command: ${cmd}`);
+  }
+};
+
 module.exports = {
   deployDpm,
   getVespertilioConf,
-  build
+  build,
+  run
 };

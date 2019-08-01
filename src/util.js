@@ -3,6 +3,7 @@ const {
   mkdirp,
   writeTxt,
 } = require('flexdeploy/src/util');
+const path = require('path');
 const del = require('del');
 
 const copyDir = async (srcDir, tarDir) => {
@@ -21,7 +22,12 @@ const writeJson = async (tar, def = {}) => {
   );
 };
 
+const resolveConfigPath = (config, defaultName) => {
+  return path.resolve(process.cwd(), config || defaultName);
+};
+
 module.exports = {
   copyDir,
-  writeJson
+  writeJson,
+  resolveConfigPath
 };
