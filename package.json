@@ -1,6 +1,6 @@
 {
   "name": "vespertilio",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Tool For Vespertilio",
   "main": "index.js",
   "scripts": {

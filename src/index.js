@@ -6,7 +6,8 @@ const {
   exec,
   existsDir,
   mkdirp,
-  parseTpl
+  parseTpl,
+  writeTxt
 } = require('flexdeploy/src/util');
 const {
   copyDir,
@@ -119,7 +120,7 @@ const getVespertilioConf = async ({
 
   // add automatic name for worker
   cnf.remote.worker.Workers = cnf.remote.worker.Workers.map((worker) => {
-    worker.name = `${cnf.name}_${worker.serviceType}`;
+    worker.name = `${cnf.name}_${worker.ServiceType}`;
     return worker;
   });
 
@@ -188,6 +189,17 @@ const buildDpm = async (cnf) => {
   const dpmBinPath = path.resolve(cnf.dpm.src, './stage/bin/');
   await mkdirp(dpmBinPath);
   await spawnp('cp', [path.resolve(cnf.source.repoRoot, 'dpm_service/stage/bin/dpm_service'), dpmBinPath]);
+
+  // write docker-compose.yml
+  await writeTxt(path.resolve(cnf.dpm.src, 'docker-compose.yml'), `
+version: '3'
+services:
+  ${cnf.name}_dpm_service:
+    build: ./stage
+    volumes:
+      - ./stage/data:/data
+    network_mode: host
+  `);
 
   // copy deploy-cnf.json to dpm dir
   await writeJson(cnf.dpm['deploy-cnf'],
