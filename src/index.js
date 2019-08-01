@@ -1,5 +1,6 @@
 const path = require('path');
 const del = require('del');
+const _ = require('lodash');
 const {
   spawnp,
   exec,
@@ -39,25 +40,88 @@ const getVespertilioConf = async ({
 
   cnf.cwd = cnfDir;
 
-  const baseDir = `./clusters/${cnf.name}`;
-  const configDir = 'conf';
+  const localDir = cnf.localDir || 'vespertilio';
+  const baseDir = `./${localDir}/clusters/${cnf.name}`;
+  const configDir = `./${localDir}/conf/${cnf.name}`;
+
+  // generate machine confs
+  _.merge(cnf, {
+    machine: {
+      na: {
+        instances: {
+          staging: cnf.machine.naHosts.map((host) => {
+            return {
+              host
+            };
+          })
+        }
+      },
+      worker: {
+        instances: {
+          staging: cnf.machine.workerHosts.map((host) => {
+            return {
+              host
+            };
+          })
+        }
+      },
+      dpm: {
+        instances: {
+          staging: cnf.machine.dpmHosts.map((host) => {
+            return {
+              host
+            };
+          })
+        }
+      }
+    }
+  });
 
   // merge with default configuration options
-  cnf.dpm = Object.assign({
-    'deploy-cnf': `${baseDir}/dpm/deploy-cnf.json`,
-    'src': `${baseDir}/dpm/src`,
-    'cnfDir': `${configDir}/dpm/cnf`,
-    'cnfFile': `${configDir}/dpm/config.json`,
-    'data': `${configDir}/data`
-  }, cnf.dpm || {});
+  _.merge(cnf, {
+    dpm: {
+      'deploy-cnf': `${baseDir}/dpm/deploy-cnf.json`,
+      'src': `${baseDir}/dpm/src`,
+      'cnfDir': `${configDir}/dpm/cnf`,
+      'cnfFile': `${configDir}/dpm/config.json`,
+      'data': `${configDir}/data`,
+      deploy: cnf.machine.dpm
+    },
+    httpna: {
+      'cnfDir': `${configDir}/http_na`
+    },
+    source: {
+      'repoRoot': `${baseDir}/code_repo`,
+    },
+    remote: {
+      NAs: _.flatten(cnf.remote.naPorts.map((port) => {
+        return cnf.machine.na.instances.staging.map(({
+          host
+        }) => {
+          return {
+            Host: host,
+            Port: port
+          };
+        });
+      })),
 
-  cnf.httpna = Object.assign({
-    'cnfDir': `${configDir}/http_na`
-  }, cnf.httpna || {});
+      worker: {
+        Machines: cnf.machine.worker.instances.staging.map(({
+          host
+        }) => {
+          return {
+            Host: host
+          };
+        })
+      }
+    }
+  });
 
-  cnf.source = Object.assign({
-    'repoRoot': `${baseDir}/code_repo`,
-  }, cnf.source || {});
+  // add automatic name for worker
+  cnf.remote.worker.Workers = cnf.remote.worker.Workers.map((worker) => {
+    worker.name = `${cnf.name}_${worker.serviceType}`;
+    return worker;
+  });
 
   // resolve paths
   cnf.source.repoRoot = path.resolve(cnfDir, cnf.source.repoRoot);
