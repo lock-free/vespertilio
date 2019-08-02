@@ -16,8 +16,8 @@ const {
 
 const deployDpm = async (dpmDeployCnfPath, onlineType) => {
   await spawnp(
-    // '../node_modules/.bin/ideploy',
-    '../../insight-in-one/thirdparty/flexdeploy/bin/ideploy',
+    '../node_modules/.bin/ideploy',
+    // '../../insight-in-one/thirdparty/flexdeploy/bin/ideploy',
 
     [
       '--config',

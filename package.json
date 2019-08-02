@@ -7,7 +7,8 @@
     "test": "mocha test/**/*.js"
   },
   "bin": {
-    "vespertilio": "./bin/vespertilio"
+    "vespertilio": "./bin/vespertilio",
+    "vespertilio-compose": "./bin/vespertilio-compose"
   },
   "repository": {
     "type": "git",
