@@ -26,14 +26,16 @@ const getConfigObject = (composeObject, clusterName) => {
 
   // default value for dpm.deploy.def.remoteDir
   return _.defaultsDeep(configObject, {
-    dpm: {
-      deploy: {
-        def: {
-          remoteDir: path.join(composeObject.root, clusterName, 'dpm')
+    build: {
+      dpm: {
+        deploy: {
+          def: {
+            remoteDir: path.join(composeObject.root, clusterName, 'dpm')
+          }
         }
       }
     },
-    remote: {
+    deploy: {
       root: path.join(composeObject.root, clusterName, 'apps')
     }
   });
