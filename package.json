@@ -1,6 +1,6 @@
 {
   "name": "vespertilio",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Tool For Vespertilio",
   "main": "index.js",
   "scripts": {
@@ -25,11 +25,11 @@
   },
   "homepage": "https://github.com/lock-free/vespertilio#readme",
   "devDependencies": {
-    "mocha": "^6.1.4"
+    "mocha": "^6.2.2"
   },
   "dependencies": {
     "del": "^4.1.1",
-    "flexdeploy": "^0.0.25",
+    "flexdeploy": "^0.0.27",
     "lodash": "^4.17.11",
     "yargs": "^13.2.4"
   }

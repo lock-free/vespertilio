@@ -20,6 +20,9 @@ const {argv} = yargs;
 
 const getConfigObject = (composeObject, clusterName) => {
   const configObject = composeObject.clusters[clusterName];
+  if(!configObject) {
+      throw new Error(`missing cluster ${clusterName}`);
+  }
   configObject.name = argv.cluster;
   // merge common configuration
   _.merge(configObject, composeObject.common || {});
