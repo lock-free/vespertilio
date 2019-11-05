@@ -11,7 +11,8 @@ const {
 } = require('flexdeploy/src/util');
 const {
   copyDir,
-  writeJson
+  writeJson,
+  log
 } = require('./util');
 
 const deployDpm = async (dpmDeployCnfPath, onlineType) => {
@@ -152,8 +153,7 @@ const syncBaseProjects = async (cnf, {
 
   await Promise.all([
     updateRepo('git@github.com:lock-free/dpm_service.git', cnf.build.repoRoot, 'dpm_service'),
-    updateRepo('git@github.com:lock-free/na_service.git', cnf.build.repoRoot, 'na_service'),
-    updateRepo('git@github.com:lock-free/httpna_service.git', cnf.build.repoRoot, 'httpna_service')
+    updateRepo('git@github.com:lock-free/na_service.git', cnf.build.repoRoot, 'na_service')
   ]);
 };
 
@@ -178,6 +178,7 @@ const copyStageToDpmSrcRepo = async (repoRoot, srcRepo, targetDir, stageDir = 's
 };
 
 const getWorkers = (cnf) => {
+  console.log(cnf.build.workers);
   return (
     cnf.only ? cnf.build.workers.filter(({
       serviceType
@@ -197,6 +198,7 @@ const buildDpm = async (cnf) => {
 version: '3'
 services:
   ${cnf.name}_dpm_service:
+    container_name: ${cnf.name}_dpm_service
     build: ./stage
     volumes:
       - ./stage/data:/data
@@ -223,11 +225,13 @@ services:
 const build = async (cnf, {
   upd
 }) => {
+  log('[sync base projects]');
   // sync base projects: dpm-cluster-demo, dpm_service, na_service, httpna_service
   await syncBaseProjects(cnf, {
     upd
   });
 
+  log('[copy source code to domSrc]');
   await copySourceCodeToDpmSrc(cnf);
 
   const srcRepo = path.resolve(cnf.build.dpm.src, './stage/data/src');
@@ -245,6 +249,7 @@ const build = async (cnf, {
         throw new Error(`missing deploy worker configuration for worker ${serviceType}`);
       }
 
+      log(`[write data files of worker ${serviceType}]`);
       // write data files
       await Promise.all(_.map(worker.data, (value, filename) => {
         return writeJson(path.join(srcRepo, serviceType, `./stage/data/${filename}`), value);
@@ -252,6 +257,7 @@ const build = async (cnf, {
     })
   ));
 
+  log('[build dpm]');
   await buildDpm(cnf);
 };
 
@@ -261,8 +267,7 @@ const copySourceCodeToDpmSrc = async (cnf) => {
 
   await Promise.all([
     // copy basic services
-    await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, 'na_service'),
-    await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, 'httpna_service')
+    await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, 'na_service')
   ].concat(
     // copy workers
     getWorkers(cnf).map(async ({

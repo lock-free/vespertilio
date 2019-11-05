@@ -5,6 +5,7 @@ const {
 } = require('flexdeploy/src/util');
 const path = require('path');
 const del = require('del');
+const log = console.log; // eslint-disable-line
 
 const copyDir = async (srcDir, tarDir) => {
   await mkdirp(tarDir);
@@ -13,6 +14,7 @@ const copyDir = async (srcDir, tarDir) => {
 };
 
 const writeJson = async (tar, def = {}) => {
+  log('writing json to file: ' + tar);
   await writeTxt(tar,
     JSON.stringify(
       def,
@@ -29,5 +31,6 @@ const resolveConfigPath = (config, defaultName) => {
 module.exports = {
   copyDir,
   writeJson,
-  resolveConfigPath
+  resolveConfigPath,
+  log
 };
