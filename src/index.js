@@ -178,7 +178,6 @@ const copyStageToDpmSrcRepo = async (repoRoot, srcRepo, targetDir, stageDir = 's
 };
 
 const getWorkers = (cnf) => {
-  console.log(cnf.build.workers);
   return (
     cnf.only ? cnf.build.workers.filter(({
       serviceType
@@ -226,23 +225,22 @@ const build = async (cnf, {
   upd
 }) => {
   log('[sync base projects]');
-  // sync base projects: dpm-cluster-demo, dpm_service, na_service, httpna_service
+  // sync base projects: dpm-cluster-demo, dpm_service, na_service
   await syncBaseProjects(cnf, {
     upd
   });
 
-  log('[copy source code to domSrc]');
   await copySourceCodeToDpmSrc(cnf);
 
   const srcRepo = path.resolve(cnf.build.dpm.src, './stage/data/src');
+  await copyDpmData(cnf);
 
-  await Promise.all([
-    await copyDpmData(cnf),
-  ].concat(
+  await Promise.all(
     // copy workers data
     getWorkers(cnf).map(async ({
       serviceType
     }) => {
+      log(`[copy worker data] ${serviceType}`);
       // get deploy  worker
       const worker = _.find(cnf.deploy.workers, (worker) => serviceType === worker.serviceType);
       if (!worker) {
@@ -255,7 +253,7 @@ const build = async (cnf, {
         return writeJson(path.join(srcRepo, serviceType, `./stage/data/${filename}`), value);
       }));
     })
-  ));
+  );
 
   log('[build dpm]');
   await buildDpm(cnf);
@@ -263,30 +261,39 @@ const build = async (cnf, {
 
 // copy code to dpm src dir
 const copySourceCodeToDpmSrc = async (cnf) => {
+  log('[copy source code to domSrc]');
+
   const srcRepo = path.resolve(cnf.build.dpm.src, './stage/data/src');
 
-  await Promise.all([
-    // copy basic services
-    await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, 'na_service')
-  ].concat(
+  // copy na_service
+  await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, 'na_service');
+
+  await Promise.all(
     // copy workers
-    getWorkers(cnf).map(async ({
-      serviceType,
-      buildCmd,
-      stageDir
-    }) => {
-      // build first
-      if (buildCmd) {
-        await exec(parseTpl(buildCmd, cnf), {
-          cwd: cnf.cwd
-        });
-      }
-      // copy source from repo root to dpm src repo
-      await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, serviceType, stageDir);
-    })));
+    getWorkers(cnf).map(async (worker) => {
+      await buildWorker(worker, cnf);
+    }));
+};
+
+const buildWorker = async ({
+  serviceType,
+  buildCmd,
+  stageDir
+}, cnf) => {
+  const srcRepo = path.resolve(cnf.build.dpm.src, './stage/data/src');
+  // build first
+  if (buildCmd) {
+    log(`[copy worker data] ${serviceType}`);
+    await exec(parseTpl(buildCmd, cnf), {
+      cwd: cnf.cwd
+    });
+  }
+  // copy source from repo root to dpm src repo
+  await copyStageToDpmSrcRepo(cnf.build.repoRoot, srcRepo, serviceType, stageDir);
 };
 
 const copyDpmData = async (cnf) => {
+  log('[copy dpm data]');
   // copy common dir
   if (await existsDir(path.join(cnf.build.dpm.cnfDir, 'common'))) {
     await copyDir(path.join(cnf.build.dpm.cnfDir, 'common'), path.join(cnf.build.dpm.src, './stage/data/cnf/common'));
