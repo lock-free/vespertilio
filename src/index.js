@@ -331,7 +331,7 @@ const copyDpmData = async (cnf) => {
 
   // copy machine/worker.json on the fly
   await writeJson(path.join(cnf.build.dpm.src, './stage/data/cnf/private/machine/worker.json'),
-    cnf.machine.na
+    cnf.machine.worker
   );
 
   // copy id_rsa
